@@ -157,6 +157,25 @@ db.connect((err) => {
     }
   });
 
+  // Auto-create tabel appointments
+  const createAppointmentsQuery = `
+    CREATE TABLE IF NOT EXISTS appointments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      number VARCHAR(20),
+      email VARCHAR(100) NOT NULL,
+      address TEXT,
+      message TEXT,
+      status VARCHAR(20) DEFAULT 'Pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+  db.query(createAppointmentsQuery, (err) => {
+    if (err) console.error("❌ Gagal membuat tabel appointments:", err);
+    else console.log("✅ Tabel 'appointments' siap digunakan.");
+  });
+
+
   // Auto-create tabel admin_users untuk Login
   const createAdminQuery = `
     CREATE TABLE IF NOT EXISTS admin_users (
@@ -376,6 +395,50 @@ app.delete('/api/blogs/:id', (req, res) => {
   db.query("DELETE FROM blogs WHERE id = ?", [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: "Blog berhasil dihapus" });
+  });
+});
+
+// ==========================================
+// API APPOINTMENTS
+// ==========================================
+
+// Ambil Semua Appointments (Untuk Dashboard Admin)
+app.get('/api/appointments', (req, res) => {
+  db.query("SELECT * FROM appointments ORDER BY id DESC", (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+// Buat Appointment Baru (Dari Form Website Utama)
+app.post('/api/appointments', (req, res) => {
+  const { name, number, email, address, message } = req.body;
+  const query = "INSERT INTO appointments (name, number, email, address, message) VALUES (?, ?, ?, ?, ?)";
+  
+  db.query(query, [name, number, email, address, message], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: "Appointment berhasil dikirim!", id: results.insertId });
+  });
+});
+
+// Ubah Status Appointment (Terima / Tolak dari Admin)
+app.put('/api/appointments/:id/status', (req, res) => {
+  const { status } = req.body;
+  const query = "UPDATE appointments SET status = ? WHERE id = ?";
+  
+  db.query(query, [status, req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: `Status appointment diperbarui menjadi ${status}` });
+  });
+});
+
+// Hapus Appointment (Dari Admin Dashboard)
+app.delete('/api/appointments/:id', (req, res) => {
+  const query = "DELETE FROM appointments WHERE id = ?";
+  
+  db.query(query, [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: "Data appointment berhasil dihapus dari MySQL" });
   });
 });
 
