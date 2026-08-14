@@ -134,6 +134,7 @@ db.connect((err) => {
       title VARCHAR(255) NOT NULL,
       date VARCHAR(100) NOT NULL,
       excerpt TEXT,
+      content LONGTEXT,
       image VARCHAR(255)
     )
   `;
@@ -144,10 +145,10 @@ db.connect((err) => {
       
       db.query("SELECT COUNT(*) AS count FROM blogs", (err, results) => {
         if (!err && results[0].count === 0) {
-          const seedQuery = "INSERT INTO blogs (title, date, excerpt, image) VALUES ?";
+          const seedQuery = "INSERT INTO blogs (title, date, excerpt, content, image) VALUES ?";
           const seedValues = [
-            ['Menjaga Kualitas Beras Organik', '12 Okt 2023', 'Beras organik bebas dari pestisida buatan dan pupuk sintetis, sehingga lebih aman bagi...', null],
-            ['Promo Spesial Ramadhan 1445H', '15 Okt 2023', 'Menyambut bulan suci Ramadhan, Alfilaha memberikan promo khusus untuk semua jenis...', null]
+            ['Menjaga Kualitas Beras Organik', '12 Okt 2023', 'Beras organik bebas dari pestisida buatan dan pupuk sintetis, sehingga lebih aman bagi...', '<p>Beras organik bebas dari pestisida buatan dan pupuk sintetis, sehingga lebih aman bagi kesehatan tubuh kita.</p>', null],
+            ['Promo Spesial Ramadhan 1445H', '15 Okt 2023', 'Menyambut bulan suci Ramadhan, Alfilaha memberikan promo khusus untuk semua jenis...', '<p>Menyambut bulan suci Ramadhan, Alfilaha memberikan promo khusus untuk semua jenis produk beras.</p>', null]
           ];
           db.query(seedQuery, [seedValues], (err) => {
             if(!err) console.log("✅ Data awal blogs berhasil dimasukkan.");
@@ -199,11 +200,58 @@ db.connect((err) => {
       });
     }
   });
+
+  // Auto-create tabel galeri
+  const createGaleriQuery = `
+    CREATE TABLE IF NOT EXISTS galeri (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      category VARCHAR(100) NOT NULL,
+      image_url VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+  db.query(createGaleriQuery, (err) => {
+    if (err) console.error("❌ Gagal membuat tabel galeri:", err);
+    else console.log("✅ Tabel 'galeri' siap digunakan.");
+  });
 });
 
 // Contoh Jalur (Endpoint) Testing
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Halo! Backend Node.js berhasil berjalan dan terhubung ke DB.' });
+});
+
+// ==========================================
+// API GALERI
+// ==========================================
+
+app.get('/api/galeri', (req, res) => {
+  db.query("SELECT * FROM galeri ORDER BY id DESC", (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+app.post('/api/galeri', upload.single('image'), (req, res) => {
+  const { title, description, category } = req.body;
+  const image_url = req.file ? req.file.filename : null;
+  if (!image_url) return res.status(400).json({ error: "Image is required" });
+  
+  const query = "INSERT INTO galeri (title, description, category, image_url) VALUES (?, ?, ?, ?)";
+  db.query(query, [title, description, category, image_url], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: "Foto berhasil ditambahkan", id: results.insertId });
+  });
+});
+
+app.delete('/api/galeri/:id', (req, res) => {
+  const query = "DELETE FROM galeri WHERE id = ?";
+  db.query(query, [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: "Foto berhasil dihapus" });
+  });
 });
 
 // ==========================================
@@ -360,11 +408,11 @@ app.get('/api/blogs', (req, res) => {
 
 // Tambah Blog Baru
 app.post('/api/blogs', upload.single('image'), (req, res) => {
-  const { title, date, excerpt } = req.body;
+  const { title, date, excerpt, content } = req.body;
   const image = req.file ? req.file.filename : null;
   
-  const query = "INSERT INTO blogs (title, date, excerpt, image) VALUES (?, ?, ?, ?)";
-  db.query(query, [title, date, excerpt, image], (err, results) => {
+  const query = "INSERT INTO blogs (title, date, excerpt, content, image) VALUES (?, ?, ?, ?, ?)";
+  db.query(query, [title, date, excerpt, content, image], (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: "Blog berhasil ditambahkan", id: results.insertId });
   });
@@ -372,18 +420,18 @@ app.post('/api/blogs', upload.single('image'), (req, res) => {
 
 // Update Blog
 app.put('/api/blogs/:id', upload.single('image'), (req, res) => {
-  const { title, date, excerpt } = req.body;
+  const { title, date, excerpt, content } = req.body;
   
   if (req.file) {
     const image = req.file.filename;
-    const query = "UPDATE blogs SET title=?, date=?, excerpt=?, image=? WHERE id=?";
-    db.query(query, [title, date, excerpt, image, req.params.id], (err) => {
+    const query = "UPDATE blogs SET title=?, date=?, excerpt=?, content=?, image=? WHERE id=?";
+    db.query(query, [title, date, excerpt, content, image, req.params.id], (err) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ message: "Blog beserta gambar berhasil diperbarui" });
     });
   } else {
-    const query = "UPDATE blogs SET title=?, date=?, excerpt=? WHERE id=?";
-    db.query(query, [title, date, excerpt, req.params.id], (err) => {
+    const query = "UPDATE blogs SET title=?, date=?, excerpt=?, content=? WHERE id=?";
+    db.query(query, [title, date, excerpt, content, req.params.id], (err) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ message: "Blog berhasil diperbarui" });
     });
@@ -465,6 +513,19 @@ app.post('/api/login', (req, res) => {
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '1d' });
     res.json({ message: "Login berhasil", token });
   });
+});
+
+// Endpoint untuk upload gambar sisipan dari React Quill
+app.post('/api/upload', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "Gagal mengupload gambar" });
+  }
+  // Kembalikan URL gambar agar bisa dirender oleh React Quill
+  // Jika app berjalan di production (misal alfilaha.id), URL ini idealnya dinamis
+  const protocol = req.protocol;
+  const host = req.get('host');
+  const imageUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+  res.json({ url: imageUrl });
 });
 
 // Menyalakan Server
