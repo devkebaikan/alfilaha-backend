@@ -26,7 +26,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'alfilaha_super_secret_key_2026';
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
+}));
+
 app.use(express.json());
 app.use('/uploads', express.static('uploads')); // Serve uploaded images
 
