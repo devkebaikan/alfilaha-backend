@@ -25,9 +25,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'alfilaha_super_secret_key_2026';
 
 const app = express();
 
+const allowedOrigins = ['http://localhost:5173', 'https://alfilaha.id']; // Tambahkan domain frontend Anda di sini
+
 // Middleware
 app.use(cors({
-  origin: '*',
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
 }));
