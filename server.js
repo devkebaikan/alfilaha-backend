@@ -8,18 +8,46 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-// Setup Multer for Image Uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const dir = './uploads';
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-    cb(null, dir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
+const sharp = require('sharp');
+
+// Setup Multer & Sharp untuk Optimasi Gambar Otomatis (ke KB)
+const multerStorage = multer.memoryStorage();
+const multerUpload = multer({ storage: multerStorage });
+
+const upload = {
+  single: function(fieldName) {
+    return async function(req, res, next) {
+      multerUpload.single(fieldName)(req, res, async function(err) {
+        if (err) return next(err);
+        if (!req.file) return next();
+        
+        try {
+          const dir = './uploads';
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+          
+          const filename = Date.now() + '-' + Math.round(Math.random() * 1E9) + '.webp';
+          const filepath = path.join(dir, filename);
+          
+          // Kompresi ekstrim menggunakan Sharp ke format WebP
+          await sharp(req.file.buffer)
+            .resize({ width: 1080, withoutEnlargement: true }) // Maksimal lebar 1080px
+            .webp({ quality: 75 }) // Kualitas 75% untuk menekan ukuran hingga puluhan/ratusan KB saja
+            .toFile(filepath);
+            
+          // Update req.file agar route selanjutnya membaca file yang sudah disimpan
+          req.file.filename = filename;
+          req.file.path = filepath;
+          req.file.mimetype = 'image/webp';
+          
+          next();
+        } catch (error) {
+          console.error("Gagal mengkompresi gambar:", error);
+          next(error);
+        }
+      });
+    };
   }
-});
-const upload = multer({ storage: storage });
+};
 
 const JWT_SECRET = process.env.JWT_SECRET || 'alfilaha_super_secret_key_2026';
 
