@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 
@@ -12,37 +11,6 @@ if (require.main === module) {
   process.once('SIGINT', shutdownServer);
   process.once('SIGTERM', shutdownServer);
   startServer();
-=======
-const express = require('express');
-const mysql = require('mysql2');
-const cors = require('cors');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-require('dotenv').config();
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const dir = './uploads';
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-    cb(null, dir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage: storage });
-
-// Import sharp untuk image resizing (jika belum di-require)
-let sharp;
-try {
-  sharp = require('sharp');
-} catch (e) {
-  console.warn('⚠️ Sharp tidak terinstall. Image optimization dilewati.');
-  sharp = null;
->>>>>>> e0f1ae7 (add file)
 }
 const JWT_SECRET = process.env.JWT_SECRET || 'alfilaha_super_secret_key_2026';
 const app = express();
