@@ -57,4 +57,5 @@ Thumbs.db
 
 # Prisma
 prisma/*.db
-prisma/*.db-journalbackup-*.json
+prisma/*.db-journal
+backup-*.json
