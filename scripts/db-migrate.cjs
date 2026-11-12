@@ -56,8 +56,22 @@ const coreSchemaStatements = [
 ];
 
 async function runScript(relativePath) {
+<<<<<<< HEAD
   const scriptPath = require('path').resolve(__dirname, relativePath);
   execFileSync(process.execPath, [scriptPath], { stdio: 'inherit', env: process.env });
+=======
+  const path = require('path');
+  const fs = require('fs');
+  const scriptPath = path.resolve(__dirname, relativePath);
+  if (!fs.existsSync(scriptPath)) {
+    throw new Error(`Script not found: ${scriptPath}`);
+  }
+  try {
+    execSync(`node "${scriptPath}"`, { stdio: 'inherit', env: process.env });
+  } catch (err) {
+    throw err;
+  }
+>>>>>>> e0f1ae7 (add file)
 }
 
 async function ensureAdminFromEnv() {
@@ -115,6 +129,7 @@ async function ensureJenisAktivitasPendidikan() {
 }
 
 async function main() {
+<<<<<<< HEAD
   const connection = await mysql.createConnection({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
@@ -151,6 +166,25 @@ async function main() {
       await connection.end();
     }
   }
+=======
+  try {
+    const path = require('path');
+    const fs = require('fs');
+    const frontendScriptPath = path.resolve(__dirname, '../alfilaha-react/scripts/db-migrate.cjs');
+    if (fs.existsSync(frontendScriptPath)) {
+      await runScript('../alfilaha-react/scripts/db-migrate.cjs');
+    } else {
+      console.log('[db-migrate] Frontend migration skipped (not found)');
+    }
+  } catch (e) {
+    console.log('[db-migrate] Frontend migration error:', e.message);
+  }
+  await ensureJenisAktivitasPendidikan();
+  await runScript('./ensure-admin-schema.cjs');
+  await runScript('./migrate-layanan-usaha.cjs');
+  await ensureAdminFromEnv();
+  console.log('db:migrate completed');
+>>>>>>> e0f1ae7 (add file)
 }
 
 main().catch((err) => {

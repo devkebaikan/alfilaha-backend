@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js",
+    "start": "node server-update.cjs",
     "db:migrate": "node scripts/db-migrate.cjs",
     "db:admin": "node scripts/ensure-admin-schema.cjs"
   },
@@ -14,12 +14,13 @@
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cloudinary": "^2.11.0",
     "compression": "^1.8.2",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^2.2.0",
+    "multer": "^2.5.0",
     "mysql2": "^3.23.2",
     "sharp": "^0.35.4"
   },

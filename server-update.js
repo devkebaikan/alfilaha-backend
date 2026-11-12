@@ -19,6 +19,15 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage: storage });
+
+// Import sharp untuk image resizing (jika belum di-require)
+let sharp;
+try {
+  sharp = require('sharp');
+} catch (e) {
+  console.warn('⚠️ Sharp tidak terinstall. Image optimization dilewati.');
+  sharp = null;
+}
 const JWT_SECRET = process.env.JWT_SECRET || 'alfilaha_super_secret_key_2026';
 const app = express();
 const allowedOrigins = ['http://localhost:5173', 'https://alfilaha.id']; 
@@ -45,21 +54,23 @@ db.connect((err) => {
   if (err) { console.error('❌ Gagal koneksi ke database:', err); return; }
   console.log('✅ Berhasil terhubung ke MySQL (db_alfilaha)');
   
-  const tables = [
-    `CREATE TABLE IF NOT EXISTS reservasi (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, whatsapp VARCHAR(20) NOT NULL, email VARCHAR(100), instansi VARCHAR(100), tanggal VARCHAR(50) NOT NULL, jumlah VARCHAR(100) NOT NULL, pesan TEXT, status VARCHAR(20) DEFAULT 'Pending')`,
-    `CREATE TABLE IF NOT EXISTS paket_wisata (id INT AUTO_INCREMENT PRIMARY KEY, nama_paket VARCHAR(100) NOT NULL, harga VARCHAR(50) NOT NULL, deskripsi TEXT, gambar VARCHAR(255))`,
-    `CREATE TABLE IF NOT EXISTS events (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255) NOT NULL, category VARCHAR(100) NOT NULL, date VARCHAR(100) NOT NULL, description TEXT, image VARCHAR(255))`,
-    `CREATE TABLE IF NOT EXISTS blogs (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255) NOT NULL, date VARCHAR(100) NOT NULL, excerpt TEXT, content LONGTEXT, image VARCHAR(255))`,
-    `CREATE TABLE IF NOT EXISTS appointments (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NOT NULL, number VARCHAR(20), email VARCHAR(100) NOT NULL, address TEXT, message TEXT, status VARCHAR(20) DEFAULT 'Pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS admin_users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(50) NOT NULL UNIQUE, password VARCHAR(255) NOT NULL)`,
-    `CREATE TABLE IF NOT EXISTS galeri (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255) NOT NULL, description TEXT, category VARCHAR(100) NOT NULL, image_url VARCHAR(255) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS pendaftar_santri (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(255) NOT NULL, tempat_lahir VARCHAR(100) NOT NULL, tanggal_lahir DATE NOT NULL, jenis_kelamin ENUM('L', 'P') NOT NULL, alamat TEXT NOT NULL, no_wa VARCHAR(20) NOT NULL, email VARCHAR(255), username VARCHAR(100) UNIQUE NOT NULL, password VARCHAR(255) NOT NULL, status_pendaftaran ENUM('Menunggu Verifikasi', 'Diterima', 'Ditolak') DEFAULT 'Menunggu Verifikasi', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
-  ,
-    `CREATE TABLE IF NOT EXISTS layanan (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255) NOT NULL, description TEXT, image VARCHAR(255), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS tanaman (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(255) NOT NULL, jenis VARCHAR(100), lokasi VARCHAR(255), deskripsi TEXT, gambar VARCHAR(255), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS log_perawatan (id INT AUTO_INCREMENT PRIMARY KEY, tanaman_id INT NOT NULL, santri_id INT NOT NULL, jenis_tindakan ENUM('siram', 'pupuk') NOT NULL, waktu_tindakan TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (tanaman_id) REFERENCES tanaman(id) ON DELETE CASCADE, FOREIGN KEY (santri_id) REFERENCES pendaftar_santri(id) ON DELETE CASCADE)`,
-    `CREATE TABLE IF NOT EXISTS foto_perkembangan (id INT AUTO_INCREMENT PRIMARY KEY, tanaman_id INT NOT NULL, santri_id INT NOT NULL, gambar VARCHAR(255) NOT NULL, waktu_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (tanaman_id) REFERENCES tanaman(id) ON DELETE CASCADE, FOREIGN KEY (santri_id) REFERENCES pendaftar_santri(id) ON DELETE CASCADE)`
-  ];
+   const tables = [
+     `CREATE TABLE IF NOT EXISTS reservasi (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(100) NOT NULL, whatsapp VARCHAR(20) NOT NULL, email VARCHAR(100), instansi VARCHAR(100), tanggal VARCHAR(50) NOT NULL, jumlah VARCHAR(100) NOT NULL, pesan TEXT, status VARCHAR(20) DEFAULT 'Pending')`,
+     `CREATE TABLE IF NOT EXISTS paket_wisata (id INT AUTO_INCREMENT PRIMARY KEY, nama_paket VARCHAR(100) NOT NULL, harga VARCHAR(50) NOT NULL, deskripsi TEXT, gambar VARCHAR(255))`,
+     `CREATE TABLE IF NOT EXISTS events (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255) NOT NULL, category VARCHAR(100) NOT NULL, date VARCHAR(100) NOT NULL, description TEXT, image VARCHAR(255))`,
+     `CREATE TABLE IF NOT EXISTS blogs (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255) NOT NULL, date VARCHAR(100) NOT NULL, excerpt TEXT, content LONGTEXT, image VARCHAR(255))`,
+     `CREATE TABLE IF NOT EXISTS appointments (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NOT NULL, number VARCHAR(20), email VARCHAR(100) NOT NULL, address TEXT, message TEXT, status VARCHAR(20) DEFAULT 'Pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+     `CREATE TABLE IF NOT EXISTS admin_users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(50) NOT NULL UNIQUE, password VARCHAR(255) NOT NULL)`,
+     `CREATE TABLE IF NOT EXISTS galeri (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255) NOT NULL, description TEXT, category VARCHAR(100) NOT NULL, image_url VARCHAR(255) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+     `CREATE TABLE IF NOT EXISTS pendaftar_santri (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(255) NOT NULL, tempat_lahir VARCHAR(100) NOT NULL, tanggal_lahir DATE NOT NULL, jenis_kelamin ENUM('L', 'P') NOT NULL, alamat TEXT NOT NULL, no_wa VARCHAR(20) NOT NULL, email VARCHAR(255), username VARCHAR(100) UNIQUE NOT NULL, password VARCHAR(255) NOT NULL, status_pendaftaran ENUM('Menunggu Verifikasi', 'Diterima', 'Ditolak') DEFAULT 'Menunggu Verifikasi', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+     `CREATE TABLE IF NOT EXISTS layanan (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255) NOT NULL, description TEXT, image VARCHAR(255), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+     `CREATE TABLE IF NOT EXISTS layanan_usaha (id INT AUTO_INCREMENT PRIMARY KEY, slug VARCHAR(60) UNIQUE NOT NULL, nama VARCHAR(100) NOT NULL, ringkasan VARCHAR(200), deskripsi TEXT, foto VARCHAR(255), judul_blok VARCHAR(100), harga_mulai INT, satuan_harga VARCHAR(40), label_tombol VARCHAR(40) NOT NULL DEFAULT 'Ajukan kunjungan', nomor_wa VARCHAR(20), url_eksternal VARCHAR(255), teks_tombol_eksternal VARCHAR(40), status ENUM('draft','dipublikasikan') NOT NULL DEFAULT 'draft', urutan INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci) ENGINE=InnoDB`,
+     `CREATE TABLE IF NOT EXISTS layanan_usaha_item (id INT AUTO_INCREMENT PRIMARY KEY, layanan_id INT NOT NULL, nama VARCHAR(150) NOT NULL, keterangan VARCHAR(100), urutan INT NOT NULL DEFAULT 0, ekosistem_tipe VARCHAR(40), ekosistem_id INT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (layanan_id) REFERENCES layanan_usaha(id) ON DELETE CASCADE, CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci) ENGINE=InnoDB`,
+     `CREATE TABLE IF NOT EXISTS layanan_usaha_fasilitas (id INT AUTO_INCREMENT PRIMARY KEY, layanan_id INT NOT NULL, teks VARCHAR(80) NOT NULL, urutan INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (layanan_id) REFERENCES layanan_usaha(id) ON DELETE CASCADE, CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci) ENGINE=InnoDB`,
+     `CREATE TABLE IF NOT EXISTS tanaman (id INT AUTO_INCREMENT PRIMARY KEY, nama VARCHAR(255) NOT NULL, jenis VARCHAR(100), lokasi VARCHAR(255), deskripsi TEXT, gambar VARCHAR(255), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+     `CREATE TABLE IF NOT EXISTS log_perawatan (id INT AUTO_INCREMENT PRIMARY KEY, tanaman_id INT NOT NULL, santri_id INT NOT NULL, jenis_tindakan ENUM('siram', 'pupuk') NOT NULL, waktu_tindakan TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (tanaman_id) REFERENCES tanaman(id) ON DELETE CASCADE, FOREIGN KEY (santri_id) REFERENCES pendaftar_santri(id) ON DELETE CASCADE)`,
+     `CREATE TABLE IF NOT EXISTS foto_perkembangan (id INT AUTO_INCREMENT PRIMARY KEY, tanaman_id INT NOT NULL, santri_id INT NOT NULL, gambar VARCHAR(255) NOT NULL, waktu_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (tanaman_id) REFERENCES tanaman(id) ON DELETE CASCADE, FOREIGN KEY (santri_id) REFERENCES pendaftar_santri(id) ON DELETE CASCADE)`
+   ];
   
   tables.forEach(q => db.query(q, (err) => { if (err) console.error(err); }));
   
@@ -120,6 +131,19 @@ const authenticateSantriToken = (req, res, next) => {
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ message: "Token tidak valid atau sudah kadaluarsa." });
     req.user = user;
+    next();
+  });
+};
+
+// Middleware untuk autentikasi admin
+const authenticateAdminToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: "Akses ditolak. Token tidak ditemukan." });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: "Token tidak valid atau sudah kadaluarsa." });
+    req.admin = user;
     next();
   });
 };
@@ -543,6 +567,207 @@ app.post('/api/login', (req, res) => {
 app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Gagal" });
   res.json({ url: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` });
+});
+
+// ============================================================
+// API LAYANAN DAN USAHA (Publik & Admin)
+// ============================================================
+
+// Helper: Resize dan compress gambar dengan sharp
+async function resizeAndCompressImage(inputPath, outputPath, maxWidth = 1600) {
+  if (!sharp) return inputPath;
+  try {
+    await sharp(inputPath)
+      .resize(maxWidth, undefined, { withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toFile(outputPath);
+    fs.unlinkSync(inputPath);
+    return outputPath;
+  } catch (err) {
+    console.warn('⚠️ Image resize gagal:', err.message);
+    return inputPath;
+  }
+}
+
+// Helper: Validasi nomor WhatsApp
+function validateAndFormatWA(wa) {
+  if (!wa) return null;
+  let cleaned = wa.replace(/\D/g, '');
+  if (cleaned.startsWith('0')) cleaned = '62' + cleaned.slice(1);
+  if (cleaned.length < 9 || cleaned.length > 15) return null;
+  return cleaned;
+}
+
+// Seed data awal
+const seedLayananUsaha = () => {
+};
+setTimeout(seedLayananUsaha, 2000);
+
+// PUBLIC: GET /api/layanan-usaha - Daftar layanan (hanya dipublikasikan)
+app.get('/api/layanan-usaha', (req, res) => {
+  const sql = `SELECT id, slug, nama, ringkasan, foto FROM layanan_usaha WHERE status = 'dipublikasikan' ORDER BY urutan ASC`;
+  db.query(sql, (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results || []);
+  });
+});
+
+// PUBLIC: GET /api/layanan-usaha/:slug - Detail layanan
+app.get('/api/layanan-usaha/:slug', (req, res) => {
+  const { slug } = req.params;
+  db.query(`SELECT * FROM layanan_usaha WHERE slug = ? AND status = 'dipublikasikan'`, [slug], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (results.length === 0) return res.status(404).json({ error: 'Layanan tidak ditemukan' });
+    
+    const layanan = results[0];
+    db.query('SELECT id, nama, keterangan, urutan FROM layanan_usaha_item WHERE layanan_id = ? ORDER BY urutan ASC', [layanan.id], (err, items) => {
+      if (err) items = [];
+      db.query('SELECT id, teks, urutan FROM layanan_usaha_fasilitas WHERE layanan_id = ? ORDER BY urutan ASC', [layanan.id], (err, fasilitas) => {
+        if (err) fasilitas = [];
+        res.json({ ...layanan, items: items || [], fasilitas: fasilitas || [] });
+      });
+    });
+  });
+});
+
+// ADMIN: GET /api/admin/layanan-usaha - Daftar semua layanan
+app.get('/api/admin/layanan-usaha', authenticateAdminToken, (req, res) => {
+  const sql = `SELECT l.id, l.slug, l.nama, l.status, l.urutan, (SELECT COUNT(*) FROM layanan_usaha_item WHERE layanan_id = l.id) as jumlah_item, (SELECT COUNT(*) FROM layanan_usaha_fasilitas WHERE layanan_id = l.id) as jumlah_fasilitas FROM layanan_usaha l ORDER BY l.urutan ASC`;
+  db.query(sql, (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results || []);
+  });
+});
+
+// ADMIN: GET /api/admin/layanan-usaha/:id - Detail lengkap
+app.get('/api/admin/layanan-usaha/:id', authenticateAdminToken, (req, res) => {
+  const { id } = req.params;
+  db.query('SELECT * FROM layanan_usaha WHERE id = ?', [id], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (results.length === 0) return res.status(404).json({ error: 'Layanan tidak ditemukan' });
+    
+    const layanan = results[0];
+    db.query('SELECT id, nama, keterangan, urutan FROM layanan_usaha_item WHERE layanan_id = ? ORDER BY urutan ASC', [id], (err, items) => {
+      if (err) items = [];
+      db.query('SELECT id, teks, urutan FROM layanan_usaha_fasilitas WHERE layanan_id = ? ORDER BY urutan ASC', [id], (err, fasilitas) => {
+        if (err) fasilitas = [];
+        res.json({ ...layanan, items: items || [], fasilitas: fasilitas || [] });
+      });
+    });
+  });
+});
+
+// ADMIN: PUT /api/admin/layanan-usaha/:id - Update layanan dengan transaction
+app.put('/api/admin/layanan-usaha/:id', authenticateAdminToken, upload.single('foto'), (req, res) => {
+  const { id } = req.params;
+  const { nama, ringkasan, deskripsi, harga_mulai, satuan_harga, nomor_wa, judul_blok, label_tombol, url_eksternal, teks_tombol_eksternal, status, items, fasilitas } = req.body;
+  
+  if (!nama || nama.trim().length === 0) return res.status(400).json({ error: 'Nama wajib diisi' });
+  if (ringkasan && ringkasan.length > 200) return res.status(400).json({ error: 'Ringkasan maksimal 200 karakter' });
+  
+  const harga = harga_mulai ? parseInt(harga_mulai, 10) : null;
+  if (harga !== null && (isNaN(harga) || harga < 0)) return res.status(400).json({ error: 'Harga mulai harus 0 atau lebih' });
+  if (harga !== null && !satuan_harga) return res.status(400).json({ error: 'Satuan harga wajib jika harga diisi' });
+  
+  const waFormatted = nomor_wa ? validateAndFormatWA(nomor_wa) : null;
+  if (nomor_wa && !waFormatted) return res.status(400).json({ error: 'Nomor WhatsApp tidak valid (9-15 digit)' });
+  
+  if (url_eksternal && !url_eksternal.match(/^https?:\/\//)) return res.status(400).json({ error: 'URL harus diawali http:// atau https://' });
+  if (url_eksternal && !teks_tombol_eksternal) return res.status(400).json({ error: 'Teks tombol eksternal wajib jika URL diisi' });
+  
+  if (status === 'dipublikasikan' && (!nama.trim() || !ringkasan || !req.file)) {
+    return res.status(400).json({ error: 'Nama, ringkasan, dan foto wajib terisi untuk publikasi' });
+  }
+
+  db.query('SELECT foto FROM layanan_usaha WHERE id = ?', [id], async (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (results.length === 0) return res.status(404).json({ error: 'Layanan tidak ditemukan' });
+    
+    const oldFoto = results[0].foto;
+    let newFoto = oldFoto;
+    
+    if (req.file) {
+      try {
+        const outputPath = req.file.path.replace(/\.\w+$/, '.webp');
+        newFoto = await resizeAndCompressImage(req.file.path, outputPath);
+        newFoto = path.basename(newFoto);
+        if (oldFoto) {
+          const oldPath = path.join('./uploads', oldFoto);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        }
+      } catch (e) {
+        return res.status(500).json({ error: 'Gagal memproses foto' });
+      }
+    }
+
+    db.beginTransaction((err) => {
+      if (err) return res.status(500).json({ error: 'Transaction error' });
+
+      const updateSql = `UPDATE layanan_usaha SET nama = ?, ringkasan = ?, deskripsi = ?, harga_mulai = ?, satuan_harga = ?, nomor_wa = ?, judul_blok = ?, label_tombol = ?, url_eksternal = ?, teks_tombol_eksternal = ?, status = ?, foto = ? WHERE id = ?`;
+      
+      db.query(updateSql, [nama.trim(), ringkasan || null, deskripsi || null, harga, satuan_harga || null, waFormatted, judul_blok || null, label_tombol || 'Ajukan kunjungan', url_eksternal || null, teks_tombol_eksternal || null, status || 'draft', newFoto, id], (err) => {
+        if (err) return db.rollback(() => res.status(500).json({ error: err.message }));
+
+        db.query('DELETE FROM layanan_usaha_item WHERE layanan_id = ?', [id], (err) => {
+          if (err) return db.rollback(() => res.status(500).json({ error: err.message }));
+
+          let itemsArray = [];
+          try {
+            itemsArray = items ? (typeof items === 'string' ? JSON.parse(items) : items) : [];
+          } catch (e) {
+            itemsArray = [];
+          }
+
+          if (itemsArray.length === 0) {
+            insertFasilitas();
+          } else {
+            let itemCount = 0;
+            itemsArray.forEach((item, idx) => {
+              db.query('INSERT INTO layanan_usaha_item (layanan_id, nama, keterangan, urutan) VALUES (?, ?, ?, ?)', [id, item.nama || '', item.keterangan || '', idx], (err) => {
+                if (err) return db.rollback(() => res.status(500).json({ error: err.message }));
+                itemCount++;
+                if (itemCount === itemsArray.length) insertFasilitas();
+              });
+            });
+          }
+
+          function insertFasilitas() {
+            db.query('DELETE FROM layanan_usaha_fasilitas WHERE layanan_id = ?', [id], (err) => {
+              if (err) return db.rollback(() => res.status(500).json({ error: err.message }));
+
+              let fasilitasArray = [];
+              try {
+                fasilitasArray = fasilitas ? (typeof fasilitas === 'string' ? JSON.parse(fasilitas) : fasilitas) : [];
+              } catch (e) {
+                fasilitasArray = [];
+              }
+
+              if (fasilitasArray.length === 0) {
+                db.commit((err) => {
+                  if (err) return db.rollback(() => res.status(500).json({ error: err.message }));
+                  res.json({ message: 'Layanan berhasil diperbarui' });
+                });
+              } else {
+                let fasCount = 0;
+                fasilitasArray.forEach((fas, idx) => {
+                  db.query('INSERT INTO layanan_usaha_fasilitas (layanan_id, teks, urutan) VALUES (?, ?, ?)', [id, fas.teks || fas || '', idx], (err) => {
+                    if (err) return db.rollback(() => res.status(500).json({ error: err.message }));
+                    fasCount++;
+                    if (fasCount === fasilitasArray.length) {
+                      db.commit((err) => {
+                        if (err) return db.rollback(() => res.status(500).json({ error: err.message }));
+                        res.json({ message: 'Layanan berhasil diperbarui' });
+                      });
+                    }
+                  });
+                });
+              }
+            });
+          }
+        });
+      });
+    });
+  });
 });
 
 // ============================================================
